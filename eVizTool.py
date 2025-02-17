@@ -33,6 +33,13 @@ class EVizTool:
         self.sensor_size = sensor_size
         self.sensor_x_max, self.sensor_y_max = sensor_size[0], sensor_size[1]
 
+        print(self.t, len(self.t))
+        print(self.x, len(self.x))
+        print(self.y, len(self.y))
+        print(self.p, len(self.p))
+        print(self.sensor_size)
+
+
     def plot_event_histogram(self):
         plt.figure(figsize=(10, 5))
         plt.hist(self.p, bins=3, edgecolor="black", alpha=0.7)
@@ -126,6 +133,7 @@ def load_event_file(path):
     output_df = pd.DataFrame()
     x_max, y_max = None, None
 
+    # for EBSSA .mat file
     if file_extension == ".mat":
         mat_data = scipy.io.loadmat(path)
         mat_td_data = mat_data['TD']
@@ -145,6 +153,18 @@ def load_event_file(path):
 
         output_df = pd.DataFrame({'t': mat_file_t, 'x': mat_file_x_pix, 'y': mat_file_y_pix, 'p': mat_file_p})
 
+    # for converted .mat files from .h5 files
+    '''if file_extension == ".mat":
+        mat_data = scipy.io.loadmat(path)
+        mat_file_x_pix = mat_data['x'][0]
+        mat_file_y_pix = mat_data['y'][0]
+        mat_file_p = mat_data['p'][0]
+        mat_file_t = mat_data['t'][0]
+        x_max = 128
+        y_max = 128
+
+        output_df = pd.DataFrame({'t': mat_file_t/1e6, 'x': mat_file_x_pix, 'y': mat_file_y_pix, 'p': mat_file_p})
+'''
     if file_extension == ".h5":
         with h5py.File(path, 'r') as file:
             h5_dataset = file['events']
