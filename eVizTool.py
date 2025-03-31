@@ -1,14 +1,10 @@
-import os
-import scipy.io
-import h5py
 import cv2
+import scipy.io
+import scipy.signal
 import numpy as np
-import pandas as pd
 import seaborn as sns
-import easygui as eg
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-
 
 class EVizTool:
     def __init__(self,event_file_name, event_data_frame, sensor_size):
@@ -33,12 +29,6 @@ class EVizTool:
         self.sensor_size = sensor_size
         self.sensor_x_max, self.sensor_y_max = sensor_size[0], sensor_size[1]
 
-        print(self.t, len(self.t))
-        print(self.x, len(self.x))
-        print(self.y, len(self.y))
-        print(self.p, len(self.p))
-        print(self.sensor_size)
-
 
     def plot_event_histogram(self):
         plt.figure(figsize=(10, 5))
@@ -46,6 +36,51 @@ class EVizTool:
         plt.title(f'Event Polarity Histogram - {self.event_file_name}')
         # plt.xticks([1, -1], labels=["ON (1)", "OFF (-1)"])
         plt.ylabel("Count")
+
+    @staticmethod
+    def peak_estimation(time_bins, density):
+        # finding ON and OFF peaks
+        # parameters are adjusted to detect significant peaks only
+        # peaks, properties = scipy.signal.find_peaks(density, height=0.1, prominence=0.05, width=2)
+        peaks, properties = scipy.signal.find_peaks(density, height=0)
+        peak_densities = properties["peak_heights"]
+
+        peak_times = time_bins[peaks]
+
+        # num_peaks = len(peaks)
+
+        # print the number of peaks and where the
+        # for i in range(num_peaks):
+        #     print(f"Peak {i + 1}: Density={peak_densities[i]:.4f}, Time={peak_times[i]:.2f}")
+
+        return peak_times, peak_densities
+
+    def estimate_and_plot_temporal_kernel_density(self):
+        plt.figure(figsize=(10, 5))
+
+        time_bins = np.linspace(self.t.min(), self.t.max(), 100)
+
+        kde_on = scipy.stats.gaussian_kde(self.t[self.p == 1])
+        kde_off = scipy.stats.gaussian_kde(self.t[self.p == 0])
+
+        density_on = kde_on(time_bins)
+        density_off = kde_off(time_bins)
+
+        on_peak_times, on_peak_densities = self.peak_estimation(time_bins, density_on)
+        off_peak_times, off_peak_densities = self.peak_estimation(time_bins, density_off)
+
+        sns.lineplot(x=time_bins, y=density_on, label="ON Events", color="blue")
+        sns.lineplot(x=time_bins, y=density_off, label="OFF Events", color="red")
+
+        plt.fill_between(time_bins, density_on, alpha=0.3, color="blue")
+        plt.fill_between(time_bins, density_off, alpha=0.3, color="red")
+
+        plt.title(f'Temporal Kernel Density Visualization - {self.event_file_name}')
+        plt.xlabel("Time")
+        plt.ylabel("Density")
+        plt.legend()
+
+        return time_bins, on_peak_times, on_peak_densities, off_peak_times, off_peak_densities
 
     def plot_temporal_kernel_density(self):
         plt.figure(figsize=(10, 5))
@@ -68,12 +103,14 @@ class EVizTool:
         ax[0].set_title(f"ON Events Density - {self.event_file_name}")
         ax[0].set_xlabel("X Coordinate")
         ax[0].set_ylabel("Y Coordinate")
+        ax[0].invert_yaxis()
         plt.colorbar(hb1, ax=ax[0])
 
         # map for OFF events
         hb2 = ax[1].hexbin(x_off, y_off, gridsize=50, cmap="Reds", mincnt=1)
         ax[1].set_title(f"OFF Events Density - {self.event_file_name}")
         ax[1].set_xlabel("X Coordinate")
+        ax[1].invert_yaxis()
         plt.colorbar(hb2, ax=ax[1])
         plt.tight_layout()
 
@@ -120,93 +157,104 @@ class EVizTool:
         plt.ylabel("Y Pixel")
         plt.show()
 
+    def event_to_video(self, integration_time, start, end, apply_bounding_box):
 
-def load_event_file(path):
-    """
-    # takes file path, loads the data and converts it to data frame for further processing
-    :param path: string - "home/data/analysis/event_data.h5"
-    :return: output data frame - pandas data frame, filename  - string, sensor size - tuple
-    """
+        self.event_data_frame['time_bin'] = (self.event_data_frame['t'] // integration_time).astype(int)
 
-    file_name = os.path.basename(file_path)
-    file_extension = os.path.splitext(file_path)[1]
-    output_df = pd.DataFrame()
-    x_max, y_max = None, None
+        time_bins = sorted(self.event_data_frame['time_bin'].unique())[start:end]
 
-    # for EBSSA .mat file
-    if file_extension == ".mat":
-        mat_data = scipy.io.loadmat(path)
-        mat_td_data = mat_data['TD']
-        mat_obj_data = mat_data['Obj']
-        mat_n_obj = mat_data['nObj']
-        mat_x_max = mat_data['xMax']
-        mat_y_max = mat_data['yMax']
+        frames = []
 
-        # mat_file_entire_data = mat_obj_data
-        mat_file_entire_data = mat_td_data
-        mat_file_x_pix = mat_file_entire_data[0][0][0].flatten()
-        mat_file_y_pix = mat_file_entire_data[0][0][1].flatten()
-        mat_file_p = mat_file_entire_data[0][0][2].flatten()
-        mat_file_t = mat_file_entire_data[0][0][3].flatten()
-        x_max = int(mat_x_max.flatten()[0])
-        y_max = int(mat_y_max.flatten()[0])
+        for t_bin in time_bins:
+            df_bin = self.event_data_frame[self.event_data_frame['time_bin'] == t_bin]
 
-        output_df = pd.DataFrame({'t': mat_file_t, 'x': mat_file_x_pix, 'y': mat_file_y_pix, 'p': mat_file_p})
+            counts_bin = df_bin.groupby(['x', 'y'])['p'].value_counts().unstack(fill_value=0)
 
-    # for converted .mat files from .h5 files
-    '''if file_extension == ".mat":
-        mat_data = scipy.io.loadmat(path)
-        mat_file_x_pix = mat_data['x'][0]
-        mat_file_y_pix = mat_data['y'][0]
-        mat_file_p = mat_data['p'][0]
-        mat_file_t = mat_data['t'][0]
-        x_max = 128
-        y_max = 128
+            for col in [0, 1]:
+                if col not in counts_bin.columns:
+                    counts_bin[col] = 0
 
-        output_df = pd.DataFrame({'t': mat_file_t/1e6, 'x': mat_file_x_pix, 'y': mat_file_y_pix, 'p': mat_file_p})
-'''
-    if file_extension == ".h5":
-        with h5py.File(path, 'r') as file:
-            h5_dataset = file['events']
-            h5_file_entire_data = h5_dataset[:]
+            counts_bin.columns = ['p=0', 'p=1']
 
-        h5_file_entire_data_T = h5_file_entire_data.T
-        h5_file_x_pix = h5_file_entire_data_T[1]
-        h5_file_y_pix = h5_file_entire_data_T[2]
-        h5_file_p = h5_file_entire_data_T[3]
-        h5_file_t = h5_file_entire_data_T[0]
+            counts_bin['intensity'] = 255 * (counts_bin['p=1'] - counts_bin['p=0'])
 
-        # we know the sensor size from simulation and rendering
-        x_max, y_max = 128, 128
-        # x_max, y_max = 1024, 768
-        # temporal resolution in microseconds - 1e6
+            frame = np.zeros(self.sensor_size)
+            for (px, py), row in counts_bin.iterrows():
+                if 0 <= px < self.sensor_size[1] and 0 <= py < self.sensor_size[0]:
+                    frame[py, px] = row['intensity']
 
-        output_df = pd.DataFrame({'t': h5_file_t/1e6, 'x': h5_file_x_pix, 'y': h5_file_y_pix, 'p': h5_file_p})
-        # output_df = pd.DataFrame({'t': h5_file_t, 'x': h5_file_x_pix, 'y': h5_file_y_pix, 'p': h5_file_p})
+            video_filename = f"../{self.event_file_name}_{integration_time}_{start}_{end}.mp4"
+            # for bounding box around the events
+            if apply_bounding_box:
+                video_filename = f"../bb_{self.event_file_name}_{integration_time}_{start}_{end}.mp4"
+                downsample_factor = 4
+                frame_size = self.sensor_size
+                x_vals, y_vals = df_bin["x"].values, df_bin["y"].values
+                x_vals = x_vals + np.random.normal(0, 1e-3, size=x_vals.shape)
+                y_vals = y_vals + np.random.normal(0, 1e-3, size=y_vals.shape)
+                # skip if too few events
+                if len(x_vals) < 2:
+                    continue
 
+                small_grid_x, small_grid_y = np.meshgrid(
+                    np.linspace(0, frame_size[1], frame_size[1] // downsample_factor),
+                    np.linspace(0, frame_size[0], frame_size[0] // downsample_factor)
+                )
 
-    return file_name, output_df, (x_max, y_max)
+                kde = scipy.stats.gaussian_kde(np.vstack([x_vals, y_vals]))
+                density = kde(np.vstack([small_grid_x.ravel(), small_grid_y.ravel()]))
+                density = density.reshape(small_grid_x.shape)
 
-try:
-    base_path = "/home/amulya/PycharmProjects/myProjects/Neuromorphic_Image_Processing/DATA/"
-    file_path = eg.fileopenbox(title="eVizTool dialog says select an event data file",
-                                   filetypes=["*.mat", "*.h5"], default=base_path)
-    # file_path = ""      # give file path manually
-    if file_path:
-        event_name, event_df, sensor_dim = load_event_file(file_path)
-        print("sensor dimension = ", sensor_dim)
-        eviz_obj = EVizTool(event_name, event_df, sensor_dim)
-        # eviz_obj.plot_event_histogram()
-        eviz_obj.plot_temporal_kernel_density()
-        eviz_obj.plot_event_on_off_map()
-        eviz_obj.plot_polarity_count_at_given_pixel()
-        eviz_obj.plot_event_intensity_map()
-        plt.show()
+                # normalize the density
+                density = (density - density.min()) / (density.max() - density.min())
 
-    else:
-        print("No event file was selected")
-except Exception as e:
-    print(f"Error while loading event file - {e}")
-    raise e
+                # gaussian smoothing
+                density_resized = cv2.resize(density, (frame_size[1], frame_size[0]), interpolation=cv2.INTER_CUBIC)
+                blurred_density = cv2.GaussianBlur(density_resized, (5, 5), 0)
 
+                # adaptive thresholding for better detection
+                _, binary_mask = cv2.threshold(blurred_density, 0.3, 1, cv2.THRESH_BINARY)
+
+                # uint8 for open cv compatibility
+                binary_mask = (binary_mask * 255).astype(np.uint8)
+
+                # apply contours to find bounding boxes
+                contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for cnt in contours:
+                    x, y, w, h = cv2.boundingRect(cnt)
+                    # to exclude small variations and noise. Try tweaking this parameter
+                    if w > 5 and h > 5:
+                        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 255), 2)
+
+            frames.append(frame)
+
+        # for plotting time bins - for only less-number of time bins
+        if end <= 10:
+            fig, axes = plt.subplots(1, len(frames), figsize=(15, 5))
+            if len(frames) == 1:
+                axes = [axes]
+
+            for ax, (frame, t_bin) in zip(axes, zip(frames, time_bins[start:end])):
+                # TODO: try with frame and frame.T
+                ax.imshow(frame, cmap='gray', origin='upper', interpolation='nearest')
+                ax.set_title(f'Time Bin {t_bin}')
+                ax.axis('off')
+            plt.tight_layout()
+            plt.show()
+
+        # for saving output
+        fps = 30
+        frame_size = (self.sensor_size[1], self.sensor_size[0])
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+
+        video_writer = cv2.VideoWriter(video_filename, fourcc, fps, frame_size, isColor=True)
+
+        for frame in frames:
+            frame_normalized = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+            # frame_colored = cv2.applyColorMap(frame_normalized, cv2.COLORMAP_PLASMA)
+            frame_colored = cv2.applyColorMap(frame_normalized, cv2.COLORMAP_JET)
+            video_writer.write(frame_colored)
+
+        video_writer.release()
+        print(f"Video saved as {video_filename}")
 
