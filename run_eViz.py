@@ -7,21 +7,6 @@ from loadFile import load_event_data_file
 from eVizTool import EVizTool
 
 if __name__ == "__main__":
-    filenames = []
-    event_start_times = []
-    event_end_times = []
-    no_of_events = []
-    max_on_peak_times = []
-    max_on_peak_densities = []
-    min_on_peak_times = []
-    min_on_peak_densities = []
-    no_of_on_peaks = []
-    max_off_peak_times = []
-    max_off_peak_densities = []
-    min_off_peak_times = []
-    min_off_peak_densities = []
-    no_of_off_peaks = []
-
     # file_path = "../../DATA/EBSSA_DATA/ISS_2_td_labelled.mat"
     # file_path = "../../DATA/Test_Data/SL8RB_1957_davis_td_labelled.mat"
     # file_path = "../../DATA/Test_Data/20170214-20-58_22285_SL-16RB_labelled.mat"
