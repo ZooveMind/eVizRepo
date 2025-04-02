@@ -1,0 +1,13 @@
+h5py==3.7.0
+matplotlib==3.5.1
+matplotlib==3.5.3
+numpy==1.23.5
+numpy==1.24.2
+numpy==1.17.4
+opencv_contrib_python-headless==4.10.0.84
+opencv_python-headless==4.7.0.72
+pandas==1.4.4
+scipy==1.8.0
+scipy==1.9.1
+seaborn==0.13.2
+tqdm==4.64.1
