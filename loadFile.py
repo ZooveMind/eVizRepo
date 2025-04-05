@@ -1,3 +1,4 @@
+
 import os
 import h5py             # for .h5
 import scipy.io         # for .mat
@@ -119,28 +120,44 @@ def load_event_data_file(file_path):
                         # print('     - labelling as polarity array')
                         polarity_array = data
 
+    if extension == '.txt':
+        data = np.loadtxt(file_path)
+
+        if data.shape[1] < 4:
+            raise ValueError("Expected 4 columns in .txt file: timestamp, x, y, polarity")
+
+        timestamp_array = data[:, 0]
+        x_array = data[:, 1]   
+        y_array = data[:, 2]   
+        polarity_array = data[:, 3].astype(int)  
+
     if extension == '.npy':
-        npy_data = np.load(file_path)
-        rows, cols = npy_data.shape
-        if cols == 4 and isinstance(npy_data, np.ndarray):
-            npy_data_T = npy_data.T
-            for data in npy_data_T:
-                # print(f"    Found a valid 1D array: {data.shape}")
-                if is_valid_timestamp_array(data):
-                    # print('     -labelling as timestamp array')
-                    timestamp_array = data
-                elif is_valid_x_y_array(data):
-                    # print('     -labelling as x or y array')
-                    x_y_counter += 1
-                    if x_y_counter - 1 == 0:
-                        x_array = data
-                    if x_y_counter - 1 == 1:
-                        y_array = data
+        try:
+            npy_data = np.load(file_path)
+            rows, cols = npy_data.shape
+            if cols == 4 and isinstance(npy_data, np.ndarray):
+                npy_data_T = npy_data.T
+                for data in npy_data_T:
+                    # print(f"    Found a valid 1D array: {data.shape}")
+                    if is_valid_timestamp_array(data):
+                        # print('     -labelling as timestamp array')
+                        timestamp_array = data
+                    elif is_valid_x_y_array(data):
+                        # print('     -labelling as x or y array')
+                        x_y_counter += 1
+                        if x_y_counter - 1 == 0:
+                            x_array = data
+                        if x_y_counter - 1 == 1:
+                            y_array = data
 
-                elif is_valid_polarity_array(data):
-                    # print('     - labelling as polarity array')
-                    polarity_array = data
-
+                    elif is_valid_polarity_array(data):
+                        # print('     - labelling as polarity array')
+                        polarity_array = data
+            else:
+                raise ValueError("Expected 4 columns in .npy file: timestamp, x, y,p")
+        except Exception as e:
+            print(f"Error loading .npy file: {e}")
+            
     if extension == '.csv':
         input_df = pd.read_csv(file_path).values
         rows, cols = input_df.shape

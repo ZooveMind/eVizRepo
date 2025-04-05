@@ -17,7 +17,11 @@ if __name__ == "__main__":
     # file_path = "../../DATA/Test_Data/test_complex.mat"
 
     # file_path = "../../DATA/Test_Data/moving_source.h5"
-    file_path = "../../DATA/Test_Data/blink_1024_768.h5"
+    #file_path = "C:\Zoove\object_detection_exploration\square_wave\Event_Square\square_1_circle_25_2.h5"
+    #file_path = "C:\Zoove\object_detection_exploration\Test_data\A0P15C1-2021_11_06_09_59_24.npy"
+    #file_path = "C:\Zoove\object_detection_exploration\Test_data\slider_depth_events\events_chunk.txt"
+    #file_path = "C:\Zoove\object_detection_exploration\Test_data\prophesee_events_mini\GOPR9647_ts.npy"
+    file_path = "C:\Zoove\object_detection_exploration\Test_data\Real_Flash_On_Off.h5"
 
     # file_path = "../../DATA/Test_Data/A0P16C2-2021_11_06_14_00_03.npy"
     # file_path = "../../DATA/Test_Data/A0P12C0-2021_11_05_14_02_50.npy"
@@ -38,9 +42,18 @@ if __name__ == "__main__":
         sensor_dim = (int(max(event_df["x"].values) + 1), int(max(event_df["y"].values) + 1))
         # print("Valid event data was found. Analyzing plots...")
         eviz_obj = EVizTool(file_name, event_df, sensor_dim)
-        eviz_obj.plot_event_histogram()
+        eviz_obj.plot_histograms()
         eviz_obj.plot_temporal_kernel_density()
         eviz_obj.plot_event_on_off_map()
         eviz_obj.plot_polarity_count_at_given_pixel()
         eviz_obj.plot_event_intensity_map()
-        plt.show()
+        eviz_obj.plot_full_heatmap()
+        eviz_obj.plot_event_batches(num_batches= 16)
+        eviz_obj.plot_event_intensity_map()
+        #eviz_obj.plot_3d_voxel_grid()
+        eviz_obj.plot_event_optical_flow()
+        #eviz_obj.generate_time_lapse_heatmap_gif(bin_width=1000)
+        #eviz_obj.plot_3d_scatter()
+
+        #mp4_path, avi_path = eviz_obj.event_to_video1(integration_time=5000, start=0, end=10, apply_bounding_box=True)
+        #plt.show()
